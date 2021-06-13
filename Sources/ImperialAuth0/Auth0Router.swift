@@ -1,20 +1,21 @@
 import Vapor
 import Foundation
 
-public class Auth0Router: FederatedServiceRouter {
-    public let baseURL: String
-    public let tokens: FederatedServiceTokens
-    public let callbackCompletion: (Request, String) throws -> (EventLoopFuture<ResponseEncodable>)
-    public var scope: [String] = []
-    public let callbackURL: String
-    public let accessTokenURL: String
-    public let service: OAuthService = .auth0
 
-    private func serviceUrl(path: String) -> String {
+public class Auth0Router : FederatedServiceRouter {
+    public let baseURL : String
+    public let tokens : FederatedServiceTokens
+    public let callbackCompletion : (Request, String) throws -> (EventLoopFuture<ResponseEncodable>)
+    public var scope : [String] = []
+    public let callbackURL : String
+    public let accessTokenURL : String
+    public let service : OAuthService = .auth0
+
+    private func serviceUrl(path : String) -> String {
         return self.baseURL.finished(with: "/") + path
     }
 
-    public required init(callback: String, completion: @escaping (Request, String) throws -> (EventLoopFuture<ResponseEncodable>)) throws {
+    public required init(callback : String, completion : @escaping (Request, String) throws -> (EventLoopFuture<ResponseEncodable>)) throws {
         let auth = try Auth0Auth()
         self.tokens = auth
         self.baseURL = "https://\(auth.domain)"
@@ -23,26 +24,26 @@ public class Auth0Router: FederatedServiceRouter {
         self.callbackCompletion = completion
     }
 
-    public func authURL(_ request: Request) throws -> String {
+    public func authURL(_ request : Request) throws -> String {
 
-//        let urlString = "https://\(self.domain)/authorize?response_type=code&client_id=NNtF2VMDe4SXaZlkpeNSo2Ci6oVw3Y27&redirect_uri=\(authCallbackUrl)&scope=\(scope)&state=xyzABC123&"
-        let path="authorize"
-//        let scope = self.scope.joined(separator: " ").addingPercentEncoding(withAllowedCharacters: .urlHostAllowed)!
-
-        let params=[
-            "response_type=code",
-            "client_id=\(self.tokens.clientID)",
-//            "redirect_uri=\("")",
-//            "scope=\(scope)",
-            "scope=openid"
-//            "state=xyzABC123" // TODO: to prevent CSRF attacks
+        let stateValue = [ Int8 ].random(count: 16).base64
+        let auth = try Auth0Auth()
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = auth.domain
+        components.path = "/authorize"
+        components.queryItems = [
+            clientIDItem,
+            .init(name: "redirect_uri", value: auth.callbackURL),
+            .init(name: "response_type", value: "code"),
+            .init(name: "state", value: stateValue)
         ]
 
-        return self.serviceUrl(path: path + "?" + params.joined(separator: "&"))
+        guard let url = components.url else {
+            throw Abort(.internalServerError)
+        }
 
-//        return "\(Auth0Router.baseURL.finished(with: "/"))login/oauth/authorize?" +
-//            "scope=\(scope.joined(separator: "%20"))&" +
-//            "client_id=\(self.tokens.clientID)"
+        return url.absoluteString
     }
 
 //    public func fetchToken(from request: Request) throws -> EventLoopFuture<String> {
@@ -83,7 +84,7 @@ public class Auth0Router: FederatedServiceRouter {
 //        }
 //    }
 
-    public func callbackBody(with code: String) -> ResponseEncodable {
+    public func callbackBody(with code : String) -> ResponseEncodable {
         return Auth0CallbackBody(
                 clientId: tokens.clientID,
                 clientSecret: tokens.clientSecret,
